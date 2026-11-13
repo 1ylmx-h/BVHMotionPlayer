@@ -1,0 +1,7 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import {parseBVH,poseAt} from '../bvh.js';
+const data=`HIERARCHY ROOT Root { OFFSET 0 0 0 CHANNELS 6 Xposition Yposition Zposition Zrotation Xrotation Yrotation JOINT Child { OFFSET 10 0 0 CHANNELS 3 Zrotation Xrotation Yrotation End Site { OFFSET 5 0 0 } } } MOTION Frames: 2 Frame Time: 0.5 0 0 0 0 0 0 0 0 0 4 0 0 90 0 0 0 0 0`;
+test('父节点旋转带动子关节，根平移正确',()=>{const b=parseBVH(data),p=poseAt(b,.5,false);assert.ok(Math.abs(p[1].p[0]-4)<1e-8);assert.ok(Math.abs(p[1].p[1]-10)<1e-8);});
+test('四元数插值和末端层级',()=>{const p=poseAt(parseBVH(data),.25,false);assert.ok(Math.abs(p[2].p[0]-(2+15/Math.sqrt(2)))<1e-8);assert.ok(Math.abs(p[2].p[1]-15/Math.sqrt(2))<1e-8);});
+test('不同旋转通道顺序产生不同姿态',()=>{const b=parseBVH(data.replace('0 0 0 90 0 0 0 0 0','0 0 0 90 45 0 0 0 0')),c=parseBVH(data.replaceAll('Zrotation Xrotation','Xrotation Zrotation').replace('0 0 0 90 0 0 0 0 0','0 0 0 90 45 0 0 0 0'));assert.notDeepEqual(poseAt(b,.5)[1].p,poseAt(c,.5)[1].p);});
+test('拒绝缺失帧和非数字输入',()=>{assert.throws(()=>parseBVH(data.slice(0,-4)));assert.throws(()=>parseBVH(data.replace('Frame Time: 0.5','Frame Time: 0')));assert.throws(()=>parseBVH(data+' 8'));});
+test('内置文件可解析，完整循环回到初始姿态',()=>{const b=parseBVH(readFileSync(new URL('../samples/wave.bvh',import.meta.url),'utf8'));assert.equal(b.frames,180);assert.equal(b.nodes.length,24);assert.deepEqual(poseAt(b,0),poseAt(b,b.duration));});
